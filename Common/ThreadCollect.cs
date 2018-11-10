@@ -515,7 +515,7 @@ namespace Common
                                      .OrderBy(it => it.F_TransTime, OrderByType.Desc)
                                      .ToList();
                                     if (resultlist0[0].F_FinalResult == "1")//第2次复校合格
-                                    {
+                                    { 
                                         writevalue.Add(1000);
                                         writevalue.Add(1);
                                         altertable = "delete";
