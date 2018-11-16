@@ -37,6 +37,9 @@
             this.button7 = new System.Windows.Forms.Button();
             this.button8 = new System.Windows.Forms.Button();
             this.button9 = new System.Windows.Forms.Button();
+            this.button10 = new System.Windows.Forms.Button();
+            this.button11 = new System.Windows.Forms.Button();
+            this.button12 = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // button1
@@ -120,7 +123,7 @@
             // 
             // button9
             // 
-            this.button9.Location = new System.Drawing.Point(284, 318);
+            this.button9.Location = new System.Drawing.Point(284, 269);
             this.button9.Name = "button9";
             this.button9.Size = new System.Drawing.Size(119, 58);
             this.button9.TabIndex = 8;
@@ -128,11 +131,44 @@
             this.button9.UseVisualStyleBackColor = true;
             this.button9.Click += new System.EventHandler(this.button9_Click);
             // 
+            // button10
+            // 
+            this.button10.Location = new System.Drawing.Point(284, 343);
+            this.button10.Name = "button10";
+            this.button10.Size = new System.Drawing.Size(142, 63);
+            this.button10.TabIndex = 9;
+            this.button10.Text = "插入产品信息";
+            this.button10.UseVisualStyleBackColor = true;
+            this.button10.Click += new System.EventHandler(this.button10_Click);
+            // 
+            // button11
+            // 
+            this.button11.Location = new System.Drawing.Point(65, 419);
+            this.button11.Name = "button11";
+            this.button11.Size = new System.Drawing.Size(207, 93);
+            this.button11.TabIndex = 10;
+            this.button11.Text = "groupinfo插数据";
+            this.button11.UseVisualStyleBackColor = true;
+            this.button11.Click += new System.EventHandler(this.button11_Click);
+            // 
+            // button12
+            // 
+            this.button12.Location = new System.Drawing.Point(328, 419);
+            this.button12.Name = "button12";
+            this.button12.Size = new System.Drawing.Size(154, 93);
+            this.button12.TabIndex = 11;
+            this.button12.Text = "多线程测试触发器";
+            this.button12.UseVisualStyleBackColor = true;
+            this.button12.Click += new System.EventHandler(this.button12_Click);
+            // 
             // FrmMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(506, 447);
+            this.ClientSize = new System.Drawing.Size(506, 564);
+            this.Controls.Add(this.button12);
+            this.Controls.Add(this.button11);
+            this.Controls.Add(this.button10);
             this.Controls.Add(this.button9);
             this.Controls.Add(this.button8);
             this.Controls.Add(this.button7);
@@ -160,6 +196,9 @@
         private System.Windows.Forms.Button button7;
         private System.Windows.Forms.Button button8;
         private System.Windows.Forms.Button button9;
+        private System.Windows.Forms.Button button10;
+        private System.Windows.Forms.Button button11;
+        private System.Windows.Forms.Button button12;
     }
 }
 

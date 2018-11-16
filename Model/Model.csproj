@@ -56,6 +56,7 @@
     <Compile Include="T_BF_OperateLog.cs" />
     <Compile Include="T_BF_Pemission.cs" />
     <Compile Include="T_BF_PermissionButton.cs" />
+    <Compile Include="T_BF_ProductInfo.cs" />
     <Compile Include="T_BF_SendError.cs" />
     <Compile Include="T_BF_UserGroup.cs" />
     <Compile Include="T_BF_UserInfo.cs" />
@@ -66,9 +67,11 @@
     <Compile Include="T_GasTest.cs" />
     <Compile Include="T_GearTest.cs" />
     <Compile Include="T_MeterModel.cs" />
+    <Compile Include="T_Param1stLine.cs" />
     <Compile Include="T_Standard.cs" />
     <Compile Include="T_TestData.cs" />
     <Compile Include="T_TestResult.cs" />
+    <Compile Include="T_TestResult1stLine.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

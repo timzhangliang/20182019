@@ -127,21 +127,30 @@ namespace Common
 
         public string CreateAllThreadToCollect()
         {
-            var db = DBHelper.GetInstance();
-            var eqmipList = db.Queryable<T_BF_EqmInfo>().ToList();
-            if (eqmipList == null) return "PLC信息配置错误";
-            if (eqmipList.Count <= 0) return "PLC信息配置错误";
-            foreach (T_BF_EqmInfo eqm in eqmipList)
+            try
             {
-                CollectData data = new CollectData();
-                data.f_PlcSet = eqm;
-                data.firstCollect = true;
+                var db = DBHelper.GetInstance();
+                var eqmipList = db.Queryable<T_BF_EqmInfo>().ToList();
+                if (eqmipList == null) return "PLC信息配置错误";
+                if (eqmipList.Count <= 0) return "PLC信息配置错误";
+                foreach (T_BF_EqmInfo eqm in eqmipList)
+                {
+                    CollectData data = new CollectData();
+                    data.f_PlcSet = eqm;
+                    data.firstCollect = true;
 
-                data.InitCollect();
-                f_ThreadList.Add(data);
+                    data.InitCollect();
+                    f_ThreadList.Add(data);
+                }
+
+                return "";
             }
+            catch (Exception ex)
+            {
 
-            return "";
+                return ex.ToString();
+            }
+           
         }
 
         #endregion
@@ -228,6 +237,7 @@ namespace Common
                         if (!f_eipclient.SendTagName(readTag, 140, 0))
                         {
                             OnConnectStatusInfo(this, new ViewLogEventArgs(GetLogText("读取PLC数据失败")));
+                            goto TcpCollect;
                         }
                         else
                         {
@@ -295,9 +305,30 @@ namespace Common
                             writevalue.Add(0);
                             writevalue.Add(1);
                             writevalue.Add(1);
+                            using (var db = DBHelper.GetInstance())//产品表 更新或插入测试方案序号
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0) db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic;
+                                if (detailstr == null)
+                                    detaildic = new Dictionary<string, string>();
+                                else
+                                    detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                detaildic["表型序号"] = "1";
+                                detailstr = JsonConvert.SerializeObject(detaildic);
+                                db.Updateable<T_BF_ProductInfo>()
+                                   .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                   .Where(it => it.F_QRCode == QRCode)
+                                   .ExecuteCommand();
+                            }
                             using (var db = DBHelper.GetInstance())//方案相关信息
                             {
-                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == 1).ToList();
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == Convert.ToInt32(detaildic["表型序号"])).ToList();
                                 writevalue.Add(resultlist[0].F_ID);
                                 writevalue.Add(1);
                                 writevalue.Add(Convert.ToInt16(resultlist[0].F_Model));
@@ -333,9 +364,37 @@ namespace Common
                             writevalue.Add(0);
                             writevalue.Add(1);
                             writevalue.Add(1);
+                            using (var db = DBHelper.GetInstance())//产品表 更新或插入测试方案序号
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0)
+                                {
+                                    db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                    list =
+                                        db.Queryable<T_BF_ProductInfo>()
+                                            .Where(it => it.F_QRCode == QRCode)
+                                            .OrderBy(it => it.F_Time, OrderByType.Desc)
+                                            .ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["表型序号"] = "1";
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                        .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                        .Where(it => it.F_QRCode == QRCode)
+                                        .ExecuteCommand();
+                                }
+                            }
                             using (var db = DBHelper.GetInstance())//方案相关信息
                             {
-                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == 1).ToList();
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == Convert.ToInt32(detaildic["表型序号"])).ToList();
                                 writevalue.Add(resultlist[0].F_ID);
                                 writevalue.Add(1);
                                 writevalue.Add(Convert.ToInt16(resultlist[0].F_Model));
@@ -346,17 +405,49 @@ namespace Common
                             }
                             using (var db = DBHelper.GetInstance()) //初教结果
                             {
+                                string chujiaoresult = "-1";
                                 var resultlist =
                                     db.Queryable<T_TestResult>()
                                         .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
                                         .OrderBy(it => it.F_TransTime, OrderByType.Desc)
                                         .ToList();
-                                if (resultlist[0].F_FinalResult == "1")
-                                    writevalue.Add(Convert.ToInt16(resultlist[0].F_FinalData));
-                                else
+                                if (resultlist.Count > 0)//初校结果最新数据
                                 {
-                                    writevalue.Add(1000);
+                                    if (resultlist[0].F_FinalResult == "1")
+                                        chujiaoresult = resultlist[0].F_FinalData;
+                                    else chujiaoresult = "1000";
+                                    //更新初校结果
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["二期初校结果"] = chujiaoresult;
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                       .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                       .Where(it => it.F_QRCode == QRCode)
+                                       .ExecuteCommand();
+                                    //删除临时表数据
+                                    db.Deleteable<T_TestResult>()
+                                        .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
+                                        .ExecuteCommand();
                                 }
+                                else if (resultlist.Count <= 0)//产品信息表查找初校结果
+                                {
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    if (detailstr == null)
+                                        throw new Exception();
+                                    Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    if (!detaildic.ContainsKey("二期初校结果"))
+                                        throw new Exception();
+                                    chujiaoresult = detaildic["二期初校结果"];
+                                }
+                                if (chujiaoresult != "-1")
+                                    writevalue.Add(Convert.ToInt32(chujiaoresult));
                             }
                             f_eipclient.WriteTagData(writetag, 0, 48, writevalue);
                         }
@@ -383,9 +474,37 @@ namespace Common
                             writevalue.Add(0);
                             writevalue.Add(1);
                             writevalue.Add(1);
+                            using (var db = DBHelper.GetInstance())//产品表 更新或插入测试方案序号
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0)
+                                {
+                                    db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                    list =
+                                        db.Queryable<T_BF_ProductInfo>()
+                                            .Where(it => it.F_QRCode == QRCode)
+                                            .OrderBy(it => it.F_Time, OrderByType.Desc)
+                                            .ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["表型序号"] = "1";
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                        .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                        .Where(it => it.F_QRCode == QRCode)
+                                        .ExecuteCommand();
+                                }
+                            }
                             using (var db = DBHelper.GetInstance())//方案相关信息
                             {
-                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == 1).ToList();
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == Convert.ToInt32(detaildic["表型序号"])).ToList();
                                 writevalue.Add(resultlist[0].F_ID);
                                 writevalue.Add(1);
                                 writevalue.Add(Convert.ToInt16(resultlist[0].F_Model));
@@ -396,31 +515,50 @@ namespace Common
                             }
                             using (var db = DBHelper.GetInstance()) //初教结果
                             {
+                                string chujiaoresult = "-1";
                                 var resultlist =
                                     db.Queryable<T_TestResult>()
                                         .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
                                         .OrderBy(it => it.F_TransTime, OrderByType.Desc)
                                         .ToList();
-                                if (resultlist[0].F_FinalResult == "1")
-                                    writevalue.Add(Convert.ToInt16(resultlist[0].F_FinalData));
-                                else
+                                if (resultlist.Count > 0)//初校结果最新数据
                                 {
-                                    writevalue.Add(1000);
+                                    if (resultlist[0].F_FinalResult == "1")
+                                        chujiaoresult = resultlist[0].F_FinalData;
+                                    else chujiaoresult = "1000";
+                                    //更新初校结果
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["二期初校结果"] = chujiaoresult;
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                       .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                       .Where(it => it.F_QRCode == QRCode)
+                                       .ExecuteCommand();
+                                    //删除临时表数据
+                                    db.Deleteable<T_TestResult>()
+                                        .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
+                                        .ExecuteCommand();
                                 }
+                                else if (resultlist.Count <= 0)//产品信息表查找初校结果
+                                {
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    if (detailstr == null)
+                                        throw new Exception();
+                                    Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    if (!detaildic.ContainsKey("二期初校结果"))
+                                        throw new Exception();
+                                    chujiaoresult = detaildic["二期初校结果"];
+                                }
+                                if (chujiaoresult != "-1")
+                                    writevalue.Add(Convert.ToInt32(chujiaoresult));
                             }
-                            //using (var db = DBHelper.GetInstance()) //复教1结果
-                            //{
-                            //    var resultlist =
-                            //        db.Queryable<T_TestResult>()
-                            //            .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode && it.F_IfSent != 1)
-                            //            .OrderBy(it => it.F_TransTime, OrderByType.Desc)
-                            //            .ToList();
-                            //    writevalue.Add(Convert.ToInt16(resultlist[0].F_FinalResult));
-                            //    db.Updateable<T_TestResult>()
-                            //        .UpdateColumns(it => it.F_IfSent == 1)
-                            //        .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode && it.F_IfSent != 1 && it.F_TransTime == resultlist[0].F_TransTime)
-                            //        .ExecuteCommand();
-                            //}
                             f_eipclient.WriteTagData(writetag, 0, 48, writevalue);
                         }
                         catch (Exception ex)
@@ -446,9 +584,37 @@ namespace Common
                             writevalue.Add(0);
                             writevalue.Add(1);
                             writevalue.Add(1);
+                            using (var db = DBHelper.GetInstance())//产品表 更新或插入测试方案序号
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0)
+                                {
+                                    db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                    list =
+                                        db.Queryable<T_BF_ProductInfo>()
+                                            .Where(it => it.F_QRCode == QRCode)
+                                            .OrderBy(it => it.F_Time, OrderByType.Desc)
+                                            .ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["表型序号"] = "1";
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                        .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                        .Where(it => it.F_QRCode == QRCode)
+                                        .ExecuteCommand();
+                                }
+                            }
                             using (var db = DBHelper.GetInstance())//方案相关信息
                             {
-                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == 1).ToList();
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == Convert.ToInt32(detaildic["表型序号"])).ToList();
                                 writevalue.Add(resultlist[0].F_ID);
                                 writevalue.Add(1);
                                 writevalue.Add(Convert.ToInt16(resultlist[0].F_Model));
@@ -459,119 +625,128 @@ namespace Common
                             }
                             using (var db = DBHelper.GetInstance()) //初教结果
                             {
+                                string chujiaoresult = "-1";
                                 var resultlist =
                                     db.Queryable<T_TestResult>()
                                         .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
                                         .OrderBy(it => it.F_TransTime, OrderByType.Desc)
                                         .ToList();
-                                if (resultlist[0].F_FinalResult == "1")
-                                    writevalue.Add(Convert.ToInt16(resultlist[0].F_FinalData));
-                                else
+                                if (resultlist.Count > 0)//初校结果最新数据
                                 {
-                                    writevalue.Add(1000);
-                                }
-                            }
-                            using (var db = DBHelper.GetInstance())//判断有没有复校结果
-                            {
-                                var resultlist =
-                                   db.Queryable<T_TestResult>()
-                                       .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode)
-                                       .OrderBy(it => it.F_TransTime, OrderByType.Desc)
-                                       .ToList();
-                                var mm = resultlist[0].F_FinalResult;
-                            }
-                            using (var db = DBHelper.GetInstance()) //复校
-                            {
-                                var resultlist =
-                                    db.Queryable<T_TestResult>()
-                                        .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode && it.F_IfSent == 1)
-                                        .OrderBy(it => it.F_TransTime, OrderByType.Desc)
-                                        .ToList();
-                                if (resultlist.Count == 0)//第一次复校
-                                {
-                                    var resultlist0 =
-                                   db.Queryable<T_TestResult>()
-                                       .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode)
-                                       .OrderBy(it => it.F_TransTime, OrderByType.Desc)
-                                       .ToList();
-                                    if (resultlist0[0].F_FinalResult == "1")//第一次复校合格
-                                    {
-                                        writevalue.Add(1);
-                                        writevalue.Add(0);
-                                        altertable = "delete";
-                                    }
-                                    if (resultlist0[0].F_FinalResult != "1")//第一次复校不合格
-                                    {
-                                        writevalue.Add(1000);
-                                        writevalue.Add(0);
-                                        altertable = "update";
-                                    }
-                                }
-                                else if (resultlist.Count > 0) //第二次复校
-                                {
-                                    var resultlist0 =
-                                 db.Queryable<T_TestResult>()
-                                     .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode && it.F_IfSent != 1)
-                                     .OrderBy(it => it.F_TransTime, OrderByType.Desc)
-                                     .ToList();
-                                    if (resultlist0[0].F_FinalResult == "1")//第2次复校合格
-                                    { 
-                                        writevalue.Add(1000);
-                                        writevalue.Add(1);
-                                        altertable = "delete";
-                                    }
-                                    if (resultlist0[0].F_FinalResult != "1")//第2次复校不合格
-                                    {
-                                        writevalue.Add(1000);
-                                        writevalue.Add(1000);
-                                        altertable = "delete";
-                                    }
-                                }
-                                //writevalue.Add(Convert.ToInt16(resultlist[0].F_FinalResult));
-                                //db.Updateable<T_TestResult>()
-                                //    .UpdateColumns(it => it.F_IfSent == 1)
-                                //    .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode && it.F_IfSent != 1 && it.F_TransTime == resultlist[0].F_TransTime)
-                                //    .ExecuteCommand();
-                            }
-                            //using (var db = DBHelper.GetInstance())//复校2结果
-                            //{
-                            //    var resultlist =
-                            //       db.Queryable<T_TestResult>()
-                            //           .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode && it.F_IfSent != 1)
-                            //           .OrderBy(it => it.F_TransTime, OrderByType.Desc)
-                            //           .ToList();
-                            //    writevalue.Add(Convert.ToInt16(resultlist[0].F_FinalResult));
-                            //    db.Updateable<T_TestResult>()
-                            //        .UpdateColumns(it => it.F_IfSent == 1)
-                            //        .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode && it.F_IfSent != 1 && it.F_TransTime == resultlist[0].F_TransTime)
-                            //        .ExecuteCommand();
-                            //}
-                            f_eipclient.WriteTagData(writetag, 0, 52, writevalue);
-                            if (altertable == "delete")
-                            {
-                                using (var db = DBHelper.GetInstance())
-                                {
+                                    if (resultlist[0].F_FinalResult == "1")
+                                        chujiaoresult = resultlist[0].F_FinalData;
+                                    else chujiaoresult = "1000";
+                                    //更新初校结果
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["二期初校结果"] = chujiaoresult;
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                       .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                       .Where(it => it.F_QRCode == QRCode)
+                                       .ExecuteCommand();
+                                    //删除临时表数据
                                     db.Deleteable<T_TestResult>()
-                                        .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode)
+                                        .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
                                         .ExecuteCommand();
                                 }
-                            }
-                            else if (altertable == "update")
-                            {
-                                using (var db = DBHelper.GetInstance())
+                                else if (resultlist.Count <= 0)//产品信息表查找初校结果
                                 {
-                                    var resultlist0 =
-                                        db.Queryable<T_TestResult>()
-                                            .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode)
-                                            .OrderBy(it => it.F_TransTime, OrderByType.Desc)
-                                            .ToList();
-                                    DateTime? datetime = resultlist0[0].F_TransTime;
-                                    db.Updateable<T_TestResult>()
-                                    .UpdateColumns(it => it.F_IfSent == 1)
-                                    .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode&& it.F_TransTime == datetime)
-                                    .ExecuteCommand();
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    if (detailstr == null)
+                                        throw new Exception();
+                                    Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    if (!detaildic.ContainsKey("二期初校结果"))
+                                        throw new Exception();
+                                    chujiaoresult = detaildic["二期初校结果"];
+                                }
+                                if (chujiaoresult != "-1")
+                                    writevalue.Add(Convert.ToInt32(chujiaoresult));
+                            }
+                            using (var db = DBHelper.GetInstance())//复校结果
+                            {
+                                var resultlist =
+                                   db.Queryable<T_TestResult>()
+                                       .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode)
+                                       .OrderBy(it => it.F_TransTime, OrderByType.Desc)
+                                       .ToList();
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                //没有复校数据抛出错误，不下发参数
+                                if (resultlist.Count <= 0 && detailstr == null) throw new Exception();
+                                Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                if (!detaildic.ContainsKey("二期复校结果1") && resultlist.Count <= 0)
+                                    throw new Exception();
+                                if (detaildic.ContainsKey("二期复校结果1") && detaildic["二期复校结果1"] == "0" && resultlist.Count <= 0)
+                                    throw new Exception();
+                                if (resultlist.Count > 0)//有最新复查数据
+                                {
+                                    //第一次复查
+                                    if (!detaildic.ContainsKey("二期复校结果1"))
+                                    {
+                                        if (resultlist[0].F_FinalResult == "1")
+                                        {
+                                            detaildic["二期复校结果1"] = "1";
+                                            detaildic["二期复校结果2"] = "0";
+                                        }
+                                        else
+                                        {
+                                            detaildic["二期复校结果1"] = "1000";
+                                            detaildic["二期复校结果2"] = "0";
+                                        }
+                                    }
+                                    else if (detaildic["二期复校结果1"] == "0")
+                                    {
+                                        if (resultlist[0].F_FinalResult == "1")
+                                        {
+                                            detaildic["二期复校结果1"] = "1";
+                                            detaildic["二期复校结果2"] = "0";
+                                        }
+                                        else
+                                        {
+                                            detaildic["二期复校结果1"] = "1000";
+                                            detaildic["二期复校结果2"] = "0";
+                                        }
+                                    }
+                                    else //更新第二次复查数据
+                                    {
+                                        if (resultlist[0].F_FinalResult == "1")
+                                        {
+                                            detaildic["二期复校结果2"] = "1";
+                                        }
+                                        else
+                                        {
+                                            detaildic["二期复校结果2"] = "1000";
+                                        }
+                                    }
+                                    //更新产品信息表
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                       .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                       .Where(it => it.F_QRCode == QRCode)
+                                       .ExecuteCommand();
+                                    //删除中间结果表信息
+                                    db.Deleteable<T_TestResult>()
+                                      .Where(it => it.F_FirstorSecond == 2 && it.F_SerialNum == QRCode)
+                                      .ExecuteCommand();
+                                    //添加下发结果
+                                    writevalue.Add(Convert.ToInt16(detaildic["二期复校结果1"]));
+                                    writevalue.Add(Convert.ToInt16(detaildic["二期复校结果2"]));
+                                }
+                                else //直接从产品信息表下发数据
+                                {
+                                    writevalue.Add(Convert.ToInt16(detaildic["二期复校结果1"]));
+                                    writevalue.Add(Convert.ToInt16(detaildic["二期复校结果2"]));
                                 }
                             }
+                            f_eipclient.WriteTagData(writetag, 0, 52, writevalue);
+
                         }
                         catch (Exception ex)
                         {
@@ -596,9 +771,37 @@ namespace Common
                             writevalue.Add(0);
                             writevalue.Add(1);
                             writevalue.Add(1);
+                            using (var db = DBHelper.GetInstance())//产品表 更新或插入测试方案序号
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0)
+                                {
+                                    db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                    list =
+                                        db.Queryable<T_BF_ProductInfo>()
+                                            .Where(it => it.F_QRCode == QRCode)
+                                            .OrderBy(it => it.F_Time, OrderByType.Desc)
+                                            .ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["表型序号"] = "1";
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                        .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                        .Where(it => it.F_QRCode == QRCode)
+                                        .ExecuteCommand();
+                                }
+                            }
                             using (var db = DBHelper.GetInstance())//方案相关信息
                             {
-                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == 1).ToList();
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == Convert.ToInt32(detaildic["表型序号"])).ToList();
                                 writevalue.Add(resultlist[0].F_ID);
                                 writevalue.Add(1);
                                 writevalue.Add(Convert.ToInt16(resultlist[0].F_Model));
@@ -609,17 +812,49 @@ namespace Common
                             }
                             using (var db = DBHelper.GetInstance()) //初教结果
                             {
+                                string chujiaoresult = "-1";
                                 var resultlist =
                                     db.Queryable<T_TestResult>()
                                         .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
                                         .OrderBy(it => it.F_TransTime, OrderByType.Desc)
                                         .ToList();
-                                if (resultlist[0].F_FinalResult == "1")
-                                    writevalue.Add(Convert.ToInt16(resultlist[0].F_FinalData));
-                                else
+                                if (resultlist.Count > 0)//初校结果最新数据
                                 {
-                                    writevalue.Add(1000);
+                                    if (resultlist[0].F_FinalResult == "1")
+                                        chujiaoresult = resultlist[0].F_FinalData;
+                                    else chujiaoresult = "1000";
+                                    //更新初校结果
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["二期初校结果"] = chujiaoresult;
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                       .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                       .Where(it => it.F_QRCode == QRCode)
+                                       .ExecuteCommand();
+                                    //删除临时表数据
+                                    db.Deleteable<T_TestResult>()
+                                        .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
+                                        .ExecuteCommand();
                                 }
+                                else if (resultlist.Count <= 0)//产品信息表查找初校结果
+                                {
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    if (detailstr == null)
+                                        throw new Exception();
+                                    Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    if (!detaildic.ContainsKey("二期初校结果"))
+                                        throw new Exception();
+                                    chujiaoresult = detaildic["二期初校结果"];
+                                }
+                                if (chujiaoresult != "-1")
+                                    writevalue.Add(Convert.ToInt32(chujiaoresult));
                             }
                             f_eipclient.WriteTagData(writetag, 0, 48, writevalue);
                         }
@@ -646,9 +881,37 @@ namespace Common
                             writevalue.Add(0);
                             writevalue.Add(1);
                             writevalue.Add(1);
+                            using (var db = DBHelper.GetInstance())//产品表 更新或插入测试方案序号
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0)
+                                {
+                                    db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                    list =
+                                        db.Queryable<T_BF_ProductInfo>()
+                                            .Where(it => it.F_QRCode == QRCode)
+                                            .OrderBy(it => it.F_Time, OrderByType.Desc)
+                                            .ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["表型序号"] = "1";
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                        .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                        .Where(it => it.F_QRCode == QRCode)
+                                        .ExecuteCommand();
+                                }
+                            }
                             using (var db = DBHelper.GetInstance())//方案相关信息
                             {
-                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == 1).ToList();
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == Convert.ToInt32(detaildic["表型序号"])).ToList();
                                 writevalue.Add(resultlist[0].F_ID);
                                 writevalue.Add(1);
                                 writevalue.Add(Convert.ToInt16(resultlist[0].F_Model));
@@ -659,17 +922,49 @@ namespace Common
                             }
                             using (var db = DBHelper.GetInstance()) //初教结果
                             {
+                                string chujiaoresult = "-1";
                                 var resultlist =
                                     db.Queryable<T_TestResult>()
                                         .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
                                         .OrderBy(it => it.F_TransTime, OrderByType.Desc)
                                         .ToList();
-                                if (resultlist[0].F_FinalResult == "1")
-                                    writevalue.Add(Convert.ToInt16(resultlist[0].F_FinalData));
-                                else
+                                if (resultlist.Count > 0)//初校结果最新数据
                                 {
-                                    writevalue.Add(1000);
+                                    if (resultlist[0].F_FinalResult == "1")
+                                        chujiaoresult = resultlist[0].F_FinalData;
+                                    else chujiaoresult = "1000";
+                                    //更新初校结果
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["二期初校结果"] = chujiaoresult;
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                       .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                       .Where(it => it.F_QRCode == QRCode)
+                                       .ExecuteCommand();
+                                    //删除临时表数据
+                                    db.Deleteable<T_TestResult>()
+                                        .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
+                                        .ExecuteCommand();
                                 }
+                                else if (resultlist.Count <= 0)//产品信息表查找初校结果
+                                {
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    if (detailstr == null)
+                                        throw new Exception();
+                                    Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    if (!detaildic.ContainsKey("二期初校结果"))
+                                        throw new Exception();
+                                    chujiaoresult = detaildic["二期初校结果"];
+                                }
+                                if (chujiaoresult != "-1")
+                                    writevalue.Add(Convert.ToInt32(chujiaoresult));
                             }
                             f_eipclient.WriteTagData(writetag, 0, 48, writevalue);
                         }
@@ -696,9 +991,37 @@ namespace Common
                             writevalue.Add(0);
                             writevalue.Add(1);
                             writevalue.Add(1);
+                            using (var db = DBHelper.GetInstance())//产品表 更新或插入测试方案序号
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0)
+                                {
+                                    db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                    list =
+                                        db.Queryable<T_BF_ProductInfo>()
+                                            .Where(it => it.F_QRCode == QRCode)
+                                            .OrderBy(it => it.F_Time, OrderByType.Desc)
+                                            .ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["表型序号"] = "1";
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                        .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                        .Where(it => it.F_QRCode == QRCode)
+                                        .ExecuteCommand();
+                                }
+                            }
                             using (var db = DBHelper.GetInstance())//方案相关信息
                             {
-                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == 1).ToList();
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == Convert.ToInt32(detaildic["表型序号"])).ToList();
                                 writevalue.Add(resultlist[0].F_ID);
                                 writevalue.Add(1);
                                 writevalue.Add(Convert.ToInt16(resultlist[0].F_Model));
@@ -709,17 +1032,49 @@ namespace Common
                             }
                             using (var db = DBHelper.GetInstance()) //初教结果
                             {
+                                string chujiaoresult = "-1";
                                 var resultlist =
                                     db.Queryable<T_TestResult>()
                                         .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
                                         .OrderBy(it => it.F_TransTime, OrderByType.Desc)
                                         .ToList();
-                                if (resultlist[0].F_FinalResult == "1")
-                                    writevalue.Add(Convert.ToInt16(resultlist[0].F_FinalData));
-                                else
+                                if (resultlist.Count > 0)//初校结果最新数据
                                 {
-                                    writevalue.Add(1000);
+                                    if (resultlist[0].F_FinalResult == "1")
+                                        chujiaoresult = resultlist[0].F_FinalData;
+                                    else chujiaoresult = "1000";
+                                    //更新初校结果
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["二期初校结果"] = chujiaoresult;
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                       .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                       .Where(it => it.F_QRCode == QRCode)
+                                       .ExecuteCommand();
+                                    //删除临时表数据
+                                    db.Deleteable<T_TestResult>()
+                                        .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
+                                        .ExecuteCommand();
                                 }
+                                else if (resultlist.Count <= 0)//产品信息表查找初校结果
+                                {
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    if (detailstr == null)
+                                        throw new Exception();
+                                    Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    if (!detaildic.ContainsKey("二期初校结果"))
+                                        throw new Exception();
+                                    chujiaoresult = detaildic["二期初校结果"];
+                                }
+                                if (chujiaoresult != "-1")
+                                    writevalue.Add(Convert.ToInt32(chujiaoresult));
                             }
                             f_eipclient.WriteTagData(writetag, 0, 48, writevalue);
                         }
@@ -746,9 +1101,37 @@ namespace Common
                             writevalue.Add(0);
                             writevalue.Add(1);
                             writevalue.Add(1);
+                            using (var db = DBHelper.GetInstance())//产品表 更新或插入测试方案序号
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0)
+                                {
+                                    db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                    list =
+                                        db.Queryable<T_BF_ProductInfo>()
+                                            .Where(it => it.F_QRCode == QRCode)
+                                            .OrderBy(it => it.F_Time, OrderByType.Desc)
+                                            .ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["表型序号"] = "1";
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                        .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                        .Where(it => it.F_QRCode == QRCode)
+                                        .ExecuteCommand();
+                                }
+                            }
                             using (var db = DBHelper.GetInstance())//方案相关信息
                             {
-                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == 1).ToList();
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == Convert.ToInt32(detaildic["表型序号"])).ToList();
                                 writevalue.Add(resultlist[0].F_ID);
                                 writevalue.Add(1);
                                 writevalue.Add(Convert.ToInt16(resultlist[0].F_Model));
@@ -759,17 +1142,49 @@ namespace Common
                             }
                             using (var db = DBHelper.GetInstance()) //初教结果
                             {
+                                string chujiaoresult = "-1";
                                 var resultlist =
                                     db.Queryable<T_TestResult>()
                                         .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
                                         .OrderBy(it => it.F_TransTime, OrderByType.Desc)
                                         .ToList();
-                                if (resultlist[0].F_FinalResult == "1")
-                                    writevalue.Add(Convert.ToInt16(resultlist[0].F_FinalData));
-                                else
+                                if (resultlist.Count > 0)//初校结果最新数据
                                 {
-                                    writevalue.Add(1000);
+                                    if (resultlist[0].F_FinalResult == "1")
+                                        chujiaoresult = resultlist[0].F_FinalData;
+                                    else chujiaoresult = "1000";
+                                    //更新初校结果
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["二期初校结果"] = chujiaoresult;
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                       .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                       .Where(it => it.F_QRCode == QRCode)
+                                       .ExecuteCommand();
+                                    //删除临时表数据
+                                    db.Deleteable<T_TestResult>()
+                                        .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
+                                        .ExecuteCommand();
                                 }
+                                else if (resultlist.Count <= 0)//产品信息表查找初校结果
+                                {
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    if (detailstr == null)
+                                        throw new Exception();
+                                    Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    if (!detaildic.ContainsKey("二期初校结果"))
+                                        throw new Exception();
+                                    chujiaoresult = detaildic["二期初校结果"];
+                                }
+                                if (chujiaoresult != "-1")
+                                    writevalue.Add(Convert.ToInt32(chujiaoresult));
                             }
                             f_eipclient.WriteTagData(writetag, 0, 48, writevalue);
                         }
@@ -796,9 +1211,37 @@ namespace Common
                             writevalue.Add(0);
                             writevalue.Add(1);
                             writevalue.Add(1);
+                            using (var db = DBHelper.GetInstance())//产品表 更新或插入测试方案序号
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0)
+                                {
+                                    db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                    list =
+                                        db.Queryable<T_BF_ProductInfo>()
+                                            .Where(it => it.F_QRCode == QRCode)
+                                            .OrderBy(it => it.F_Time, OrderByType.Desc)
+                                            .ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["表型序号"] = "1";
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                        .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                        .Where(it => it.F_QRCode == QRCode)
+                                        .ExecuteCommand();
+                                }
+                            }
                             using (var db = DBHelper.GetInstance())//方案相关信息
                             {
-                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == 1).ToList();
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                var resultlist = db.Queryable<T_MeterModel>().Where(it => it.F_ID == Convert.ToInt32(detaildic["表型序号"])).ToList();
                                 writevalue.Add(resultlist[0].F_ID);
                                 writevalue.Add(1);
                                 writevalue.Add(Convert.ToInt16(resultlist[0].F_Model));
@@ -809,17 +1252,49 @@ namespace Common
                             }
                             using (var db = DBHelper.GetInstance()) //初教结果
                             {
+                                string chujiaoresult = "-1";
                                 var resultlist =
                                     db.Queryable<T_TestResult>()
                                         .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
                                         .OrderBy(it => it.F_TransTime, OrderByType.Desc)
                                         .ToList();
-                                if (resultlist[0].F_FinalResult == "1")
-                                    writevalue.Add(Convert.ToInt16(resultlist[0].F_FinalData));
-                                else
+                                if (resultlist.Count > 0)//初校结果最新数据
                                 {
-                                    writevalue.Add(1000);
+                                    if (resultlist[0].F_FinalResult == "1")
+                                        chujiaoresult = resultlist[0].F_FinalData;
+                                    else chujiaoresult = "1000";
+                                    //更新初校结果
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic;
+                                    if (detailstr == null)
+                                        detaildic = new Dictionary<string, string>();
+                                    else
+                                        detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    detaildic["二期初校结果"] = chujiaoresult;
+                                    detailstr = JsonConvert.SerializeObject(detaildic);
+                                    db.Updateable<T_BF_ProductInfo>()
+                                       .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                       .Where(it => it.F_QRCode == QRCode)
+                                       .ExecuteCommand();
+                                    //删除临时表数据
+                                    db.Deleteable<T_TestResult>()
+                                        .Where(it => it.F_FirstorSecond == 1 && it.F_SerialNum == QRCode)
+                                        .ExecuteCommand();
                                 }
+                                else if (resultlist.Count <= 0)//产品信息表查找初校结果
+                                {
+                                    var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    if (detailstr == null)
+                                        throw new Exception();
+                                    Dictionary<string, string> detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    if (!detaildic.ContainsKey("二期初校结果"))
+                                        throw new Exception();
+                                    chujiaoresult = detaildic["二期初校结果"];
+                                }
+                                if (chujiaoresult != "-1")
+                                    writevalue.Add(Convert.ToInt32(chujiaoresult));
                             }
                             f_eipclient.WriteTagData(writetag, 0, 48, writevalue);
                         }

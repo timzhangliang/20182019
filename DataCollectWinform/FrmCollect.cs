@@ -201,5 +201,22 @@ namespace DataCollectWinform
                 }
             }
         }
+
+        private void FrmCollect_Load(object sender, EventArgs e)
+        {
+            string msg = "";
+            msg = f_collect.CreateAllThreadToCollect();
+            if (msg.Equals(""))
+            {
+                TsBTnStart.Visible = false;
+                TsBtnClose.Visible = true;
+                start = DateTime.Now;
+                timer1.Enabled = true;
+            }
+            else
+            {
+                MessageBox.Show(msg);
+            }
+        }
     }
 }

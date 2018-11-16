@@ -39,8 +39,8 @@
             this.TbTime = new System.Windows.Forms.ToolStripTextBox();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.label1 = new System.Windows.Forms.Label();
-            this.listEqmInfo = new DataCollectWinform.ListViewNF();
             this.timer1 = new System.Windows.Forms.Timer(this.components);
+            this.listEqmInfo = new DataCollectWinform.ListViewNF();
             this.toolStrip1.SuspendLayout();
             this.tableLayoutPanel1.SuspendLayout();
             this.SuspendLayout();
@@ -134,6 +134,11 @@
             this.label1.Text = "设备信息";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
+            // timer1
+            // 
+            this.timer1.Interval = 1000;
+            this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
+            // 
             // listEqmInfo
             // 
             this.listEqmInfo.BorderStyle = System.Windows.Forms.BorderStyle.None;
@@ -148,11 +153,6 @@
             this.listEqmInfo.UseCompatibleStateImageBehavior = false;
             this.listEqmInfo.View = System.Windows.Forms.View.Details;
             // 
-            // timer1
-            // 
-            this.timer1.Interval = 1000;
-            this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
-            // 
             // FrmCollect
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
@@ -165,6 +165,7 @@
             this.Name = "FrmCollect";
             this.Text = "采集下发程序";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FrmCollect_FormClosing);
+            this.Load += new System.EventHandler(this.FrmCollect_Load);
             this.toolStrip1.ResumeLayout(false);
             this.toolStrip1.PerformLayout();
             this.tableLayoutPanel1.ResumeLayout(false);

@@ -40,13 +40,13 @@ namespace DataCollectWinform
             //        throw;
             //    }
             //}
-           
+
         }
 
         private void button1_Click(object sender, EventArgs e)
         {
             var db = DBHelper.GetInstance();
-            T_EquipmentStatus entity=new T_EquipmentStatus();
+            T_EquipmentStatus entity = new T_EquipmentStatus();
             entity.F_EquipmentAlarm = 0;
             entity.F_EquipmentID = "0";
             entity.F_EquipmentStatus = 0;
@@ -63,7 +63,7 @@ namespace DataCollectWinform
                 Thread t = new Thread(new ParameterizedThreadStart(alter));
                 t.Start(i);
             }
-          
+
         }
 
         private void alter(object i)
@@ -90,7 +90,7 @@ namespace DataCollectWinform
                 LogHelper.WriteLog("cuowu", ex);
                 throw;
             }
-           
+
         }
 
         private void button3_Click(object sender, EventArgs e)
@@ -109,7 +109,7 @@ namespace DataCollectWinform
         private void button4_Click(object sender, EventArgs e)
         {
             var db = DBHelper.GetInstance();
-            List<string> field= db.Ado.SqlQuery<string>("select name from syscolumns Where ID=OBJECT_ID('T_BF_EqmStatusTag')");
+            List<string> field = db.Ado.SqlQuery<string>("select name from syscolumns Where ID=OBJECT_ID('T_BF_EqmStatusTag')");
             //string field = db.Ado.GetString("select name from syscolumns Where ID=OBJECT_ID('{0}')", "T_BF_EqmCurrentInfo");
         }
 
@@ -143,11 +143,11 @@ namespace DataCollectWinform
 
             var dt = db.Ado.GetDataTable("select F_EqmTag from T_BF_EqmInfo where F_ID=4");
             var str = dt.Rows[0][0].ToString();
-            Dictionary<string, string> obj =JsonConvert.DeserializeObject<Dictionary<string, string>>(str);
+            Dictionary<string, string> obj = JsonConvert.DeserializeObject<Dictionary<string, string>>(str);
             var mm = obj["read"];
             for (int i = 0; i < 300; i++)
             {
-               // if (obj[i.ToString()] == null)
+                // if (obj[i.ToString()] == null)
                 {
                     obj[i.ToString()] = i.ToString();
                 }
@@ -173,6 +173,75 @@ namespace DataCollectWinform
             var db = DBHelper.GetInstance();
             var dt = db.Queryable<T_MeterModel>().Where(it => it.F_ID == 1).ToList();
             var mm = dt[0];
+        }
+
+        private void button10_Click(object sender, EventArgs e)
+        {
+            //try
+            //{
+
+
+            //    try
+            //    {
+            //        throw new Exception();
+            //        var m = 2;
+            //    }
+            //    catch (Exception ex)
+            //    {
+
+            //        throw ex;
+            //    }
+            //}
+            //catch (Exception)
+            //{
+
+            //    throw;
+            //}
+            var db = DBHelper.GetInstance();
+            var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == "1111").ToList();
+            if (list.Count == 0) db.Insertable<T_BF_ProductInfo>(new { F_QRCode = "1111" }).ExecuteCommand();
+            list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == "1111").OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+            string detailstr = list[0].F_ProductDetail;
+            Dictionary<string, string> detaildic;
+            if (detailstr == null)
+                detaildic = new Dictionary<string, string>();
+            else
+                detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+            detaildic["表型序号"] = "3";
+            bool flag = detaildic.ContainsKey("123");
+            detailstr = JsonConvert.SerializeObject(detaildic);
+            db.Updateable<T_BF_ProductInfo>()
+               .UpdateColumns(it => it.F_ProductDetail == detailstr)
+               .Where(it => it.F_QRCode == "1111")
+               .ExecuteCommand();
+        }
+
+        private void button11_Click(object sender, EventArgs e)
+        {
+            SqlSugarClient db = new SqlSugarClient(new ConnectionConfig() { ConnectionString = " Data Source = localhost; Initial Catalog = DB_Main; Integrated Security = False; User ID = sa; Password = 19921023zl; Connect Timeout = 15; Encrypt = False; TrustServerCertificate = True; Pooling = true; Max Pool Size = 40000; Min Pool Size = 0; ", DbType = SqlSugar.DbType.SqlServer, IsAutoCloseConnection = true });
+
+            while (true)
+            {
+                var dt = db.Ado.GetDataTable($"insert into T_BF_UserGroupInfo values('1','{DateTime.Now.ToString()}') ");
+                Thread.Sleep(3000);
+            }
+        }
+        public void update()
+        {
+            SqlSugarClient db = new SqlSugarClient(new ConnectionConfig() { ConnectionString = " Data Source = localhost; Initial Catalog = DBCMPS_QDWB; Integrated Security = False; User ID = sa; Password = 19921023zl; Connect Timeout = 15; Encrypt = False; TrustServerCertificate = True; Pooling = true; Max Pool Size = 40000; Min Pool Size = 0; ", DbType = SqlSugar.DbType.SqlServer, IsAutoCloseConnection = true });
+            for (int i = 0; i < 100; i++)
+            {
+                db.Ado.ExecuteCommand($"update T_BF_EqmCurrentInfo set F005='{i}',F006='{i}',F007='{i}' where F_ID=1");
+            }
+        }
+
+        private void button12_Click(object sender, EventArgs e)
+        {
+            for (int i = 1; i <= 100; i++)
+            {
+                Thread t = new Thread(new ThreadStart(update));
+                t.Start();
+            }
         }
     }
 }
