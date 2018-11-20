@@ -53,11 +53,11 @@ namespace DataCollectWinform
 
         private void FrmCollect_FormClosing(object sender, FormClosingEventArgs e)
         {
-            FrmPassToUse frm = new FrmPassToUse();
-            if (frm.ShowDialog() != DialogResult.OK)
-            {
-                e.Cancel = true;
-            }
+            //FrmPassToUse frm = new FrmPassToUse();
+            //if (frm.ShowDialog() != DialogResult.OK)
+            //{
+            //    e.Cancel = true;
+            //}
         }
 
         private void TsBTnStart_Click(object sender, EventArgs e)
