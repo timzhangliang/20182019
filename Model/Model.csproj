@@ -44,8 +44,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="EqmAlarmInfo.cs" />
     <Compile Include="T_BF_CardHistoryInfo.cs" />
     <Compile Include="T_BF_Classes.cs" />
+    <Compile Include="T_BF_EqmCurrentInfo.cs" />
     <Compile Include="T_BF_EqmInfo.cs" />
     <Compile Include="T_BF_EqmParamHeadInfo.cs" />
     <Compile Include="T_BF_EqmProductTag.cs" />
@@ -63,6 +65,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="T_BF_WebButton.cs" />
     <Compile Include="T_BF_WebPage.cs" />
+    <Compile Include="T_BF_WorkOrderInfo.cs" />
     <Compile Include="T_EquipmentStatus.cs" />
     <Compile Include="T_GasTest.cs" />
     <Compile Include="T_GearTest.cs" />

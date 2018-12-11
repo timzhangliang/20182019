@@ -171,7 +171,7 @@ namespace DataCollectWinform
         private void button9_Click(object sender, EventArgs e)
         {
             var db = DBHelper.GetInstance();
-            var dt = db.Queryable<T_MeterModel>().Where(it => it.F_ID == 1).ToList();
+            var dt = db.Queryable<T_MeterModel>().Where(it => it.F_ID == 1111).ToList();
             var mm = dt[0];
         }
 
@@ -241,6 +241,58 @@ namespace DataCollectWinform
             {
                 Thread t = new Thread(new ThreadStart(update));
                 t.Start();
+            }
+        }
+
+        private void button13_Click(object sender, EventArgs e)
+        {
+
+            for (int i = 1; i <= 8; i++)
+            {
+                Thread t = new Thread(new ParameterizedThreadStart(alter2));
+                t.Start(i);
+            }
+
+        }
+
+        private void alter2(object i)
+        {
+            try
+            {
+                SqlSugarClient db = new SqlSugarClient(new ConnectionConfig() { ConnectionString = " Data Source = localhost; Initial Catalog = BMS2; Integrated Security = False; User ID = sa; Password = 19921023zl; Connect Timeout = 15; Encrypt = False; TrustServerCertificate = True; Pooling = true; Max Pool Size = 40000; Min Pool Size = 0; ", DbType = SqlSugar.DbType.SqlServer, IsAutoCloseConnection = true });
+                for (int j = 0; j < 1000; j++)
+                {
+                    db.Ado.ExecuteCommand($"update T_BF_EqmCurrentInfo set Alarm={j} where F_EqmCode='test{i.ToString()}'");
+                }
+
+            }
+            catch (Exception ex)
+            {
+
+                LogHelper.WriteLog("cuowu", ex);
+                throw;
+            }
+
+        }
+
+        private void button14_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                SqlSugarClient db = new SqlSugarClient(new ConnectionConfig() { ConnectionString = " Data Source = localhost; Initial Catalog = BMS; Integrated Security = False; User ID = sa; Password = 19921023zl; Connect Timeout = 15; Encrypt = False; TrustServerCertificate = True; Pooling = true; Max Pool Size = 40000; Min Pool Size = 0; ", DbType = SqlSugar.DbType.SqlServer, IsAutoCloseConnection = true });
+                var list = db.Queryable<T_BF_EqmCurrentInfo>().ToList();
+                T_BF_EqmCurrentInfo item=new T_BF_EqmCurrentInfo();
+                item.Alarm = 4;
+                item.F_EqmCode = "chujiao";
+                item.F_EqmIP = "192.168.40.1";
+                item.Updated = 2;
+                db.Updateable(item).ExecuteCommand();
+            }
+            catch (Exception ex)
+            {
+
+                LogHelper.WriteLog("cuowu", ex);
+                throw;
             }
         }
     }

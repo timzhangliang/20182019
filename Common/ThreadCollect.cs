@@ -87,6 +87,7 @@ namespace Common
     public class PrePareForCollect
     {
         public List<CollectData> f_ThreadList = new List<CollectData>();
+        public List<CurrentData> currentData_ThreadList = new List<CurrentData>();
 
         #region 创建所有ping线程
         public void PingThreadCreate()
@@ -129,8 +130,21 @@ namespace Common
         {
             try
             {
+                //更新实时状态表
+                //UpdateEqmCurrentInfo();
+
                 var db = DBHelper.GetInstance();
-                var eqmipList = db.Queryable<T_BF_EqmInfo>().ToList();
+                var list = db.Queryable<T_BF_EqmCurrentInfo>().ToList();
+                foreach (var item in list)
+                {
+                    item.Updated = 0;
+                    CurrentData data = new CurrentData();
+                    data.f_currentinfo = item;
+                    data.InitCollect();
+                    currentData_ThreadList.Add(data);
+                }
+
+                var eqmipList = db.Queryable<T_BF_EqmInfo>().Where(it => it.F_EqmIP == "192.168.40.55").ToList();
                 if (eqmipList == null) return "PLC信息配置错误";
                 if (eqmipList.Count <= 0) return "PLC信息配置错误";
                 foreach (T_BF_EqmInfo eqm in eqmipList)
@@ -142,7 +156,8 @@ namespace Common
                     data.InitCollect();
                     f_ThreadList.Add(data);
                 }
-
+                //var mm = f_ThreadList.Find(it => it.f_PlcSet.F_EqmCode == "OP06");
+                //mm.f_PlcSet.F_EqmPort = 111;
                 return "";
             }
             catch (Exception ex)
@@ -153,6 +168,23 @@ namespace Common
 
         }
 
+        #endregion
+        #region 更新设备实时监控表
+        public void UpdateEqmCurrentInfo()
+        {
+            using (var db = DBHelper.GetInstance())
+            {
+                var list = db.Queryable<T_BF_EqmInfo>().Where(it => it.F_Used == 1).ToList();
+                for (int i = 0; i < list.Count; i++)
+                {
+                    var item = db.Queryable<T_BF_EqmCurrentInfo>().Where(it => it.F_EqmCode == list[i].F_EqmCode).ToList();
+                    if (item.Count <= 0)
+                    {
+                        db.Insertable<T_BF_EqmCurrentInfo>(new { F_EqmCode = list[i].F_EqmCode, F_EqmIP = list[i].F_EqmIP }).ExecuteCommand();
+                    }
+                }
+            }
+        }
         #endregion
     }
 
@@ -247,25 +279,76 @@ namespace Common
                             {
                                 //下发参数
                                 QRCode = ChangeToInfo(f_eipclient.galRecvBytesResult, 108, 32, 6, 0);
-                                int flag = SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, writeTag);
-                                if (flag == 1)
-                                    SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 102, 2, 1);
-                                else
+                                if (f_PlcSet.F_EqmLine == 2)
                                 {
-                                    SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 102, 2, 2);
+                                    int flag = SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, writeTag);
+                                    if (flag == 1)
+                                        SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 102, 2, 1);
+                                    else
+                                    {
+                                        SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 102, 2, 2);
+                                    }
+                                }
+                                else if (f_PlcSet.F_EqmLine == 1)
+                                {
+                                    if (!JudgeIfQualified())
+                                    {
+                                        SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 100, 2, 2); //不合格产品
+                                        SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 102, 2, 1);//下发完成
+                                    }
+                                    else
+                                    {
+                                        //int flag = SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, writeTag);
+                                        //if (flag == 1)
+                                        SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 100, 2, 1);
+                                        //else
+                                        //{
+                                        //    SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 100, 2, 3);
+                                        //}
+                                        SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, writeTag);
+                                    }
+                                    //SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 102, 2, 1);//下发完成
                                 }
                             }
                         }
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 OnConnectStatusInfo(this, new ViewLogEventArgs(GetLogText("采集数据异常或已关闭")));
                 goto TcpCollect;
             }
         }
 
+        #endregion
+        #region //判断产品总体结果 如果总体结果不合格返回false 其他情况返回true
+        public bool JudgeIfQualified()
+        {
+            using (var db = DBHelper.GetInstance())
+            {
+                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                if (list.Count == 0) return true;
+                list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                string detailstr = list[0].F_ProductDetail;
+                Dictionary<string, string> detaildic;
+                if (detailstr == null)
+                    return true;
+                else
+                    detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                if (detaildic.ContainsKey("总结果"))
+                {
+                    if (detaildic["总结果"] == "0")
+                        return false;
+                    else
+                        return true;
+                }
+                else
+                {
+                    return true;
+                }
+            }
+        }
         #endregion
 
         #region//下发标志位
@@ -276,7 +359,6 @@ namespace Common
             flag.Add(value);
             f_eipclient.WriteTagData(writetag, start, len, flag);
         }
-
         #endregion
         #region //下发扫码参数
         public void GetFangan()//产品表 更新或插入测试方案序号
@@ -704,14 +786,406 @@ namespace Common
                             throw ex;
                         }
                         break;
+                    #endregion
+                    #region 一期机芯密封性检测
+                    case "UN107":
+                        try
+                        {
+                            //工单编号
+                            writevalue.Add(BitConverter.ToInt16(f_eipclient.galRecvBytesResult, 124));
+                            writevalue.Add(BitConverter.ToInt16(f_eipclient.galRecvBytesResult, 126));
+                            //设备编号
+                            for (int i = 0; i < 5; i++) writevalue.Add(0);
+                            //物料编码
+                            writevalue.Add(BitConverter.ToInt16(f_eipclient.galRecvBytesResult, 108));
+                            writevalue.Add(BitConverter.ToInt16(f_eipclient.galRecvBytesResult, 110));
+                            writevalue.Add(BitConverter.ToInt16(f_eipclient.galRecvBytesResult, 112));
+                            writevalue.Add(BitConverter.ToInt16(f_eipclient.galRecvBytesResult, 114));
+                            writevalue.Add(BitConverter.ToInt16(f_eipclient.galRecvBytesResult, 116));
+                            //型号代码
+                            writevalue.Add(0);
+                            //计划产量
+                            writevalue.Add(0);
+                            writevalue.Add(1);
+                            //writeOK
+                            writevalue.Add(1);
+                            //下发参数
+                            using (var db = DBHelper.GetInstance())
+                            {
+                                var resultlist =
+                                    db.Queryable<T_Param1stLine>()
+                                        .Where(it => it.F_ID == 1)
+                                       .ToList();
+                                if (resultlist.Count == 0)
+                                {
+                                    throw new Exception();
+                                }
+                                //充气压力
+                                writevalue.Add(0);
+                                writevalue.Add(Convert.ToInt16(resultlist[0].Param1));
+                                //充气时间
+                                writevalue.Add(0);
+                                writevalue.Add(Convert.ToInt16(resultlist[0].Param2));
+                                //平衡时间
+                                writevalue.Add(0);
+                                writevalue.Add(Convert.ToInt16(resultlist[0].Param3));
+                                //检测时间
+                                writevalue.Add(0);
+                                writevalue.Add(Convert.ToInt16(resultlist[0].Param4));
+                                //泄露限额
+                                writevalue.Add(0);
+                                writevalue.Add(Convert.ToInt16(resultlist[0].Param5));
+                            }
+                            f_eipclient.WriteTagData(writetag, 0, 52, writevalue);
+                        }
+                        catch (Exception ex)
+                        {
+                            LogHelper.WriteLog("一期机芯密封性检测", ex);
+                            throw ex;
+                        }
+                        break;
+                    #endregion
+                    #region 铆接工位1
+                    case "MOUJIE1":
+                        try
+                        {
+                            using (var db = DBHelper.GetInstance())
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0) db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic;
+                                if (detailstr == null)
+                                    detaildic = new Dictionary<string, string>();
+                                else
+                                    detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                //detaildic["111"] = "1";
+                                detailstr = JsonConvert.SerializeObject(detaildic);
+                                db.Updateable<T_BF_ProductInfo>()
+                                   .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                   .Where(it => it.F_QRCode == QRCode)
+                                   .ExecuteCommand();
+                            }
+                            using (var db = DBHelper.GetInstance())
+                            {
+                                try
+                                {
+                                    var list =
+                                    db.Queryable<T_BF_ProductInfo>()
+                                        .Where(it => it.F_QRCode == QRCode)
+                                        .OrderBy(it => it.F_Time, OrderByType.Desc)
+                                        .ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic =
+                                         JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    writevalue.Add(Convert.ToInt16(detaildic["铆接反面结果"]));
+                                    //writevalue.Add(2);
+                                }
+                                catch (Exception ex)
+                                {
+                                    writevalue.Add(0);
+                                }
+
+                            }
+                            f_eipclient.WriteTagData(writetag, 0, 2, writevalue);
+                            SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 102, 2, 1);//下发完成
+                        }
+                        catch (Exception ex)
+                        {
+                            LogHelper.WriteLog("铆接工位1", ex);
+                            throw ex;
+                        }
+                        break;
+                    #endregion
+                    #region 铆接工位2
+                    case "MOUJIE2":
+                        try
+                        {
+                            using (var db = DBHelper.GetInstance())
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0) db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic;
+                                if (detailstr == null)
+                                    detaildic = new Dictionary<string, string>();
+                                else
+                                    detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                //detaildic["111"] = "1";
+                                detailstr = JsonConvert.SerializeObject(detaildic);
+                                db.Updateable<T_BF_ProductInfo>()
+                                   .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                   .Where(it => it.F_QRCode == QRCode)
+                                   .ExecuteCommand();
+                            }
+                            using (var db = DBHelper.GetInstance())
+                            {
+                                try
+                                {
+                                    var list =
+                                    db.Queryable<T_BF_ProductInfo>()
+                                        .Where(it => it.F_QRCode == QRCode)
+                                        .OrderBy(it => it.F_Time, OrderByType.Desc)
+                                        .ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic =
+                                         JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    writevalue.Add(Convert.ToInt16(detaildic["铆接正面结果"]));
+                                    //writevalue.Add(2);
+                                }
+                                catch (Exception ex)
+                                {
+                                    writevalue.Add(0);
+                                }
+
+                            }
+                            f_eipclient.WriteTagData(writetag, 0, 2, writevalue);
+                            SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 102, 2, 1);//下发完成
+                        }
+                        catch (Exception ex)
+                        {
+                            LogHelper.WriteLog("铆接工位2", ex);
+                            throw ex;
+                        }
+                        break;
+                    #endregion
+                    #region OP06组件换线移栽机1
+                    case "OP06":
+                        try
+                        {
+                            using (var db = DBHelper.GetInstance())
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0) db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic;
+                                if (detailstr == null)
+                                    detaildic = new Dictionary<string, string>();
+                                else
+                                    detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                //detaildic["111"] = "1";
+                                detailstr = JsonConvert.SerializeObject(detaildic);
+                                db.Updateable<T_BF_ProductInfo>()
+                                   .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                   .Where(it => it.F_QRCode == QRCode)
+                                   .ExecuteCommand();
+                            }
+                            using (var db = DBHelper.GetInstance())
+                            {
+                                try
+                                {
+                                    var list =
+                                    db.Queryable<T_BF_ProductInfo>()
+                                        .Where(it => it.F_QRCode == QRCode)
+                                        .OrderBy(it => it.F_Time, OrderByType.Desc)
+                                        .ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic =
+                                         JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    try
+                                    {
+                                        writevalue.Add(Convert.ToInt16(detaildic["铆接正面结果"]));
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        writevalue.Add(0);
+                                    }
+                                    try
+                                    {
+                                        writevalue.Add(Convert.ToInt16(detaildic["铆接反面结果"]));
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        writevalue.Add(0);
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    //writevalue.Add(0);
+                                    throw ex;
+                                }
+
+                            }
+                            f_eipclient.WriteTagData(writetag, 0, 4, writevalue);
+                            SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 102, 2, 1);//下发完成
+
+                            //读取PLC测试产品结果数据
+                            int PCDataOK = 0;
+                            while (PCDataOK == 0)
+                            {
+                                f_eipclient.SendTagName(readTag, 144, 0);
+                                SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 102, 2, 1);//下发完成
+
+                                byte[] data = f_eipclient.galRecvBytesResult;
+                                //检测完成标志位
+                                PCDataOK = data[105];
+                                if (PCDataOK == 1)
+                                {
+                                    //从PLC读检测数据
+                                    int resultzheng = data[141];
+                                    int resultfan = data[143];
+                                    using (var db = DBHelper.GetInstance())
+                                    {
+                                        var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                        string detailstr = list[0].F_ProductDetail;
+                                        Dictionary<string, string> detaildic;
+                                        if (detailstr == null)
+                                            detaildic = new Dictionary<string, string>();
+                                        else
+                                            detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                        if (resultzheng != 0)
+                                            detaildic["铆接正面结果"] = resultzheng.ToString();
+                                        if (resultfan != 0)
+                                            detaildic["铆接反面结果"] = resultzheng.ToString();
+                                        if (resultzheng == 2 || resultfan == 2)
+                                        {
+                                            detaildic["总结果"] = 0.ToString();
+                                        }
+                                        else if (!detaildic.ContainsKey("总结果"))
+                                        {
+                                            detaildic["总结果"] = 1.ToString();
+                                        }
+                                        detailstr = JsonConvert.SerializeObject(detaildic);
+                                        db.Updateable<T_BF_ProductInfo>()
+                                           .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                           .Where(it => it.F_QRCode == QRCode)
+                                           .ExecuteCommand();
+                                    }
+                                    //更新检测结果完成，告诉PLC标志位
+                                    SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 106, 2, 1);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            LogHelper.WriteLog("OP06组件换线移栽机1", ex);
+                            throw ex;
+                        }
+                        break;
+                    #endregion
+                    #region OP07组件换线移栽机2
+                    case "OP07":
+                        try
+                        {
+                            using (var db = DBHelper.GetInstance())
+                            {
+                                var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).ToList();
+                                if (list.Count == 0) db.Insertable<T_BF_ProductInfo>(new { F_QRCode = QRCode }).ExecuteCommand();
+                                list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                string detailstr = list[0].F_ProductDetail;
+                                Dictionary<string, string> detaildic;
+                                if (detailstr == null)
+                                    detaildic = new Dictionary<string, string>();
+                                else
+                                    detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                //detaildic["111"] = "1";
+                                detailstr = JsonConvert.SerializeObject(detaildic);
+                                db.Updateable<T_BF_ProductInfo>()
+                                   .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                   .Where(it => it.F_QRCode == QRCode)
+                                   .ExecuteCommand();
+                            }
+                            using (var db = DBHelper.GetInstance())
+                            {
+                                try
+                                {
+                                    var list =
+                                    db.Queryable<T_BF_ProductInfo>()
+                                        .Where(it => it.F_QRCode == QRCode)
+                                        .OrderBy(it => it.F_Time, OrderByType.Desc)
+                                        .ToList();
+                                    string detailstr = list[0].F_ProductDetail;
+                                    Dictionary<string, string> detaildic =
+                                         JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                    try
+                                    {
+                                        writevalue.Add(Convert.ToInt16(detaildic["铆接正面结果"]));
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        writevalue.Add(0);
+                                    }
+                                    try
+                                    {
+                                        writevalue.Add(Convert.ToInt16(detaildic["铆接反面结果"]));
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        writevalue.Add(0);
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    //writevalue.Add(0);
+                                    throw ex;
+                                }
+
+                            }
+                            f_eipclient.WriteTagData(writetag, 0, 4, writevalue);
+                            SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 102, 2, 1);//下发完成
+
+                            //读取PLC测试产品结果数据
+                            int PCDataOK = 0;
+                            while (PCDataOK == 0)
+                            {
+                                f_eipclient.SendTagName(readTag, 144, 0);
+                                byte[] data = f_eipclient.galRecvBytesResult;
+                                //检测完成标志位
+                                PCDataOK = data[105];
+                                if (PCDataOK == 1)
+                                {
+                                    //从PLC读检测数据
+                                    int resultzheng = data[141];
+                                    int resultfan = data[143];
+                                    using (var db = DBHelper.GetInstance())
+                                    {
+                                        var list = db.Queryable<T_BF_ProductInfo>().Where(it => it.F_QRCode == QRCode).OrderBy(it => it.F_Time, OrderByType.Desc).ToList();
+                                        string detailstr = list[0].F_ProductDetail;
+                                        Dictionary<string, string> detaildic;
+                                        if (detailstr == null)
+                                            detaildic = new Dictionary<string, string>();
+                                        else
+                                            detaildic = JsonConvert.DeserializeObject<Dictionary<string, string>>(detailstr);
+                                        if (resultzheng != 0)
+                                            detaildic["铆接正面结果"] = resultzheng.ToString();
+                                        if (resultfan != 0)
+                                            detaildic["铆接反面结果"] = resultzheng.ToString();
+                                        if (resultzheng == 2 || resultfan == 2)
+                                        {
+                                            detaildic["总结果"] = 0.ToString();
+                                        }
+                                        else if (!detaildic.ContainsKey("总结果"))
+                                        {
+                                            detaildic["总结果"] = 1.ToString();
+                                        }
+                                        detailstr = JsonConvert.SerializeObject(detaildic);
+                                        db.Updateable<T_BF_ProductInfo>()
+                                           .UpdateColumns(it => it.F_ProductDetail == detailstr)
+                                           .Where(it => it.F_QRCode == QRCode)
+                                           .ExecuteCommand();
+                                    }
+                                    //更新检测结果完成，告诉PLC标志位
+                                    SendParam(f_PlcSet.F_EqmCode, f_PlcSet.F_EqmIP, f_PlcSet.F_EqmPort, readTag, 106, 2, 1);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            LogHelper.WriteLog("OP07组件换线移栽机2", ex);
+                            throw ex;
+                        }
+                        break;
                         #endregion
                 }
                 return 1;
             }
             catch (Exception ex)
             {
-                return 2;
                 OnConnectStatusInfo(this, new ViewLogEventArgs(GetLogText("下发参数失败")));
+                return 2;
             }
         }
 
@@ -780,6 +1254,18 @@ namespace Common
         }
         #endregion
     }
+    #endregion
+    #region 状态实时表多线程、包括MES上传设备数据
+    public class CurrentData
+    {
+        public Thread f_collectThread;  //线程
+        public T_BF_EqmCurrentInfo f_currentinfo;//设备信息
+
+        public void InitCollect()
+        {
+        }
+    }
+
     #endregion
 
 }
